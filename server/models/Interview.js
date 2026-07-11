@@ -52,6 +52,12 @@ const interviewSchema = new mongoose.Schema({
     enum: ['female', 'male'],
     default: 'female',
   },
+  studyGuide: [
+    {
+      topic: String,
+      description: String,
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

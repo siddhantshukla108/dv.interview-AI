@@ -74,6 +74,13 @@ export default function Navbar() {
                         </div>
                         <button
                           onClick={() => { navigate('/history'); setDropdownOpen(false); }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-between"
+                          id="nav-achievements-link"
+                        >
+                          Achievements & Badges <span>🏆</span>
+                        </button>
+                        <button
+                          onClick={() => { navigate('/history'); setDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                           id="nav-history-link"
                         >

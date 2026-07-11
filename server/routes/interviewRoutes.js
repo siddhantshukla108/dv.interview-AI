@@ -6,6 +6,7 @@ import {
   completeInterview,
   getHistory,
   getInterviewDetail,
+  generateHint,
 } from '../controllers/interviewController.js';
 import isAuth from '../middleware/isAuth.js';
 import upload from '../middleware/multerConfig.js';
@@ -15,6 +16,7 @@ const router = express.Router();
 router.post('/resume-parse', isAuth, upload.single('resume'), resumeParse);
 router.post('/start', isAuth, startInterview);
 router.post('/answer', isAuth, submitAnswer);
+router.post('/hint', isAuth, generateHint);
 router.post('/complete/:id', isAuth, completeInterview);
 router.get('/history', isAuth, getHistory);
 router.get('/:id', isAuth, getInterviewDetail);

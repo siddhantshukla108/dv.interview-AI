@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useContext } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -9,12 +9,28 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../utils/api';
+import { AuthContext } from '../App';
 
 export default function Dashboard() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, checkAuth } = useContext(AuthContext);
+  
   const [interview, setInterview] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [earnedBadges, setEarnedBadges] = useState([]);
+
+  useEffect(() => {
+    if (location.state?.newBadges && location.state.newBadges.length > 0) {
+      setEarnedBadges(location.state.newBadges);
+      setShowBadgeModal(true);
+      navigate(location.pathname, { replace: true, state: {} }); // Properly clear React Router state
+      checkAuth(); // Refresh user profile to update the badges array in context!
+    }
+  }, [location.state, checkAuth]);
 
   useEffect(() => {
     const load = async () => {
@@ -158,6 +174,42 @@ export default function Dashboard() {
       }
     });
 
+    // 5. Custom Learning Paths (Study Guide)
+    if (interview.studyGuide && interview.studyGuide.length > 0) {
+      const finalY = doc.lastAutoTable.finalY || 160;
+      let startY = finalY + 15;
+      
+      if (startY > 250) {
+        doc.addPage();
+        startY = 20;
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(75, 85, 99);
+      doc.text('CUSTOM LEARNING PATHS (STUDY GUIDE)', 15, startY);
+      doc.line(15, startY + 3, 195, startY + 3);
+      
+      startY += 10;
+      interview.studyGuide.forEach(item => {
+        if (startY > 270) {
+          doc.addPage();
+          startY = 20;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(16, 185, 129); // emerald-500
+        doc.text(`• ${item.topic}`, 15, startY);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(75, 85, 99); // gray-600
+        const splitDesc = doc.splitTextToSize(item.description, 175);
+        doc.text(splitDesc, 20, startY + 5);
+        
+        startY += (splitDesc.length * 4) + 6;
+      });
+    }
+
     doc.save(`dv_interview_AI_Report_${interview.role.replace(/\s+/g, '_')}.pdf`);
   };
 
@@ -250,7 +302,30 @@ export default function Dashboard() {
           </motion.button>
         </div>
 
-        {/* KPI Cards Row */}
+        {/* User Badges Banner */}
+        {user?.badges && user.badges.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 mb-8 flex items-center gap-6 overflow-x-auto"
+          >
+            <div>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">Your Achievements</h2>
+              <div className="flex items-center gap-6 mt-3">
+                {user.badges.map((badge, idx) => (
+                  <div key={idx} className="flex flex-col items-center">
+                    <div className="flex flex-col items-center justify-center bg-gradient-to-br from-amber-100 to-yellow-200 border border-yellow-300 w-14 h-14 rounded-full shadow-sm mb-2" title={badge}>
+                      <span className="text-2xl">🏆</span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-700">{badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* First Visuals Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
@@ -490,7 +565,73 @@ export default function Dashboard() {
             })}
           </div>
         </motion.div>
+      
+      {/* Custom Learning Paths (Study Guide) */}
+      {interview.studyGuide && interview.studyGuide.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="max-w-6xl mx-auto bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-8 shadow-md mb-8 text-white"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+            </svg>
+            <h2 className="text-2xl font-bold">Personalized Study Guide</h2>
+          </div>
+          <p className="text-emerald-50 mb-6 max-w-3xl">Based on your interview performance, our AI has identified these key areas for you to focus your studies on before your real interview.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {interview.studyGuide.map((item, i) => (
+              <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                <h3 className="text-lg font-bold text-white mb-2">{item.topic}</h3>
+                <p className="text-emerald-50 text-sm leading-relaxed">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
       </div>
+
+      {/* New Badge Modal overlay */}
+      {showBadgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl"
+          >
+            <div className="text-6xl mb-4">🎉</div>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">New Badges Unlocked!</h2>
+            <p className="text-gray-500 mb-8">You performed exceptionally well and earned some new achievements.</p>
+            
+            <div className="flex justify-center gap-4 mb-8">
+              {earnedBadges.map((badge, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 + (idx * 0.1) }}
+                  className="flex flex-col items-center"
+                >
+                  <div className="bg-gradient-to-br from-amber-300 to-yellow-500 w-20 h-20 rounded-full flex items-center justify-center shadow-lg border-4 border-white mb-2 text-3xl">
+                    🏆
+                  </div>
+                  <span className="font-bold text-gray-800 text-sm">{badge}</span>
+                </motion.div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowBadgeModal(false)}
+              className="w-full bg-gray-900 text-white font-bold rounded-xl py-3 hover:bg-gray-800 transition-colors"
+            >
+              Awesome!
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import API from '../utils/api';
+import { AuthContext } from '../App';
 
 export default function History() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
   useEffect(() => {
     const load = async () => {
@@ -45,6 +47,29 @@ export default function History() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Interview History</h1>
         </div>
+
+        {/* User Badges Banner */}
+        {user?.badges && user.badges.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 mb-8 flex items-center gap-6 overflow-x-auto"
+          >
+            <div>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">Your Achievements</h2>
+              <div className="flex items-center gap-6 mt-3">
+                {user.badges.map((badge, idx) => (
+                  <div key={idx} className="flex flex-col items-center">
+                    <div className="flex flex-col items-center justify-center bg-gradient-to-br from-amber-100 to-yellow-200 border border-yellow-300 w-14 h-14 rounded-full shadow-sm mb-2" title={badge}>
+                      <span className="text-2xl">🏆</span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-700">{badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {interviews.length === 0 ? (
           <div className="text-center py-20">

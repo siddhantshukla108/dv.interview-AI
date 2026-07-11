@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import API from './utils/api';
 import Navbar from './components/Navbar';
@@ -35,7 +35,7 @@ function App() {
     checkAuth();
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const { data } = await API.get('/auth/profile');
       setUser(data.user);
@@ -44,7 +44,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const login = (userData) => {
     setUser(userData);
@@ -65,7 +65,7 @@ function App() {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, showAuth, setShowAuth, updateCredits }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, showAuth, setShowAuth, updateCredits, checkAuth }}>
       <Router>
         <div className="min-h-screen bg-gray-50">
           <Navbar />

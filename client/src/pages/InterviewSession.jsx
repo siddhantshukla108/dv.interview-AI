@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import API from '../utils/api';
 import { speak, stopSpeaking, createRecognition, isSpeechRecognitionSupported } from '../utils/speech';
+import { AuthContext } from '../App';
 
 export default function InterviewSession() {
   const { id } = useParams();
@@ -14,10 +15,15 @@ export default function InterviewSession() {
   const [feedback, setFeedback] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [liveInterim, setLiveInterim] = useState('');
   const [listening, setListening] = useState(false);
   const [timer, setTimer] = useState(60);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  
+  const { user, updateCredits } = useContext(AuthContext);
+  const [hint, setHint] = useState(null);
+  const [fetchingHint, setFetchingHint] = useState(false);
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -76,6 +82,7 @@ export default function InterviewSession() {
     if (!question) return;
 
     setFeedback(null);
+    setHint(null);
     setAnswer('');
     setTimer(60);
 
@@ -114,6 +121,7 @@ export default function InterviewSession() {
         recognitionRef.current.stop();
       }
       setListening(false);
+      setLiveInterim('');
     } else {
       const recognition = createRecognition();
       if (!recognition) return;
@@ -122,15 +130,16 @@ export default function InterviewSession() {
       let fullTranscript = answer;
 
       recognition.onresult = (event) => {
-        let interimTranscript = '';
+        let currentInterim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             fullTranscript += event.results[i][0].transcript + ' ';
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            currentInterim += event.results[i][0].transcript;
           }
         }
-        setAnswer(fullTranscript + interimTranscript);
+        setAnswer(fullTranscript + currentInterim);
+        setLiveInterim(currentInterim);
       };
 
       recognition.onerror = () => setListening(false);
@@ -156,6 +165,7 @@ export default function InterviewSession() {
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
       setListening(false);
+      setLiveInterim('');
     }
 
     const finalAnswer = isSkip === true ? '' : answer.trim();
@@ -188,6 +198,23 @@ export default function InterviewSession() {
     }
   };
 
+  const handleGetHint = async () => {
+    if (fetchingHint || user.credits < 5) return;
+    setFetchingHint(true);
+    try {
+      const { data } = await API.post('/interview/hint', {
+        interviewId: id,
+        questionIndex: currentIndex,
+      });
+      setHint(data.hint);
+      updateCredits(data.newCredits);
+    } catch (err) {
+      console.error('Failed to get hint:', err);
+    } finally {
+      setFetchingHint(false);
+    }
+  };
+
   // Next question or complete
   const handleNext = async () => {
     if (currentIndex < interview.questions.length - 1) {
@@ -196,8 +223,8 @@ export default function InterviewSession() {
       // Complete interview
       setCompleting(true);
       try {
-        await API.post(`/interview/complete/${id}`);
-        navigate(`/dashboard/${id}`);
+        const { data } = await API.post(`/interview/complete/${id}`);
+        navigate(`/dashboard/${id}`, { state: { newBadges: data.newBadges } });
       } catch (err) {
         console.error('Failed to complete interview:', err);
       } finally {
@@ -209,9 +236,11 @@ export default function InterviewSession() {
   // Early exit
   const handleEarlyExit = async () => {
     try {
-      await API.post(`/interview/complete/${id}`);
-    } catch {}
-    navigate(`/dashboard/${id}`);
+      const { data } = await API.post(`/interview/complete/${id}`);
+      navigate(`/dashboard/${id}`, { state: { newBadges: data.newBadges } });
+    } catch {
+      navigate(`/dashboard/${id}`);
+    }
   };
 
   if (loading) {
@@ -260,6 +289,11 @@ export default function InterviewSession() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                   </span>
+                </div>
+              )}
+              {listening && liveInterim && (
+                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                  <p className="text-white text-sm font-medium italic animate-pulse">"{liveInterim}"</p>
                 </div>
               )}
             </div>
@@ -331,6 +365,12 @@ export default function InterviewSession() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <p className="text-xs text-gray-400 mb-2">Question {currentIndex + 1} of {totalQuestions}</p>
             <p className="text-gray-900 font-medium leading-relaxed">{question?.text}</p>
+            {hint && (
+              <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-sm font-semibold text-amber-700 mb-1">💡 Hint</p>
+                <p className="text-sm text-amber-900">{hint}</p>
+              </div>
+            )}
           </div>
 
           {/* Answer Area */}
@@ -385,6 +425,19 @@ export default function InterviewSession() {
                 <line x1="8" y1="23" x2="16" y2="23" />
               </svg>
             </motion.button>
+            
+            {/* Get Hint Button */}
+            {!feedback && !hint && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleGetHint}
+                disabled={fetchingHint || user?.credits < 5}
+                className="px-4 py-3 bg-amber-100 text-amber-700 rounded-xl font-semibold hover:bg-amber-200 transition-colors disabled:opacity-50"
+              >
+                {fetchingHint ? 'Loading...' : 'Get a Hint (-5 Credits)'}
+              </motion.button>
+            )}
 
             {/* Submit / Next */}
             {feedback ? (

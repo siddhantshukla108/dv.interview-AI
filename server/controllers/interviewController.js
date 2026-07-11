@@ -321,11 +321,74 @@ export const completeInterview = async (req, res) => {
     }
 
     interview.status = 'complete';
+
+    // Generate Custom Learning Paths (Study Guide)
+    if (interview.questions.length > 0) {
+      const qaList = interview.questions.map((q, i) => `Q${i + 1}: ${q.text}\nAnswer: ${q.answerText || '[Skipped]'}\nScores: Correctness ${q.scores.correctness}/10, Communication ${q.scores.communication}/10`).join('\n\n');
+
+      const studyPrompt = `Based on the following interview performance, identify 2 to 3 key areas where the candidate needs improvement.
+      
+Interview Q&A:
+${qaList}
+
+Return ONLY a valid JSON array containing objects with exactly two string fields: "topic" and "description".
+Example:
+[
+  { "topic": "React Hooks", "description": "You struggled to explain useEffect. Review component lifecycles." }
+]`;
+
+      try {
+        const result = await callOpenRouter([
+          { role: 'system', content: 'You are an expert technical interviewer and career coach. Output JSON only.' },
+          { role: 'user', content: studyPrompt }
+        ], 1000);
+
+        const jsonMatch = result.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          interview.studyGuide = JSON.parse(jsonMatch[0]);
+        }
+      } catch (err) {
+        console.error('Failed to generate study guide:', err);
+      }
+    }
+
     await interview.save();
+
+    // Gamification & Badges Logic
+    const user = await User.findById(req.user.userId);
+    let newBadges = [];
+    if (user) {
+      const completedCount = await Interview.countDocuments({ userId: req.user.userId, status: 'complete' });
+
+      const awardBadge = (badgeName) => {
+        if (!user.badges.includes(badgeName)) {
+          user.badges.push(badgeName);
+          newBadges.push(badgeName);
+        }
+      };
+
+      // Rule: Completed their first interview
+      if (completedCount === 1) awardBadge('First Steps');
+
+      // Rule: Average score 8 or higher
+      if (interview.averageScore >= 8) awardBadge('High Performer');
+
+      // Rule: Perfect or near-perfect score
+      if (interview.averageScore >= 9.5) awardBadge('Perfectionist');
+
+      // Rule: Excellent communicator (avg Comm >= 8.5)
+      const avgComm = interview.questions.reduce((sum, q) => sum + (q.scores.communication || 0), 0) / (interview.questions.length || 1);
+      if (avgComm >= 8.5) awardBadge('Smooth Talker');
+
+      if (newBadges.length > 0) {
+        await user.save();
+      }
+    }
 
     res.status(200).json({
       message: 'Interview completed',
       interview,
+      newBadges,
     });
   } catch (error) {
     console.error('Complete interview error:', error);
@@ -373,5 +436,50 @@ export const getInterviewDetail = async (req, res) => {
     res.status(200).json({ interview });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch interview detail', error: error.message });
+  }
+};
+
+// Generate a hint for a specific question
+export const generateHint = async (req, res) => {
+  try {
+    const { interviewId, questionIndex } = req.body;
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Check credits
+    if (user.credits < 5) {
+      return res.status(402).json({ message: 'Insufficient credits for a hint (costs 5 credits)' });
+    }
+
+    const interview = await Interview.findById(interviewId);
+    if (!interview) return res.status(404).json({ message: 'Interview not found' });
+    if (interview.userId.toString() !== req.user.userId) return res.status(403).json({ message: 'Unauthorized' });
+
+    if (questionIndex < 0 || questionIndex >= interview.questions.length) {
+      return res.status(400).json({ message: 'Invalid question index' });
+    }
+
+    const question = interview.questions[questionIndex];
+
+    // Generate hint using LLM
+    const prompt = `You are a helpful interview coach. The candidate is stuck on the following question:
+"${question.text}"
+
+Provide a short, subtle hint (1-2 sentences) to point them in the right direction without giving away the complete answer.`;
+
+    const hintText = await callOpenRouter([
+      { role: 'system', content: 'You are an expert interview coach. Give short, subtle hints.' },
+      { role: 'user', content: prompt }
+    ], 300); // Small max tokens for a hint
+
+    // Deduct credits
+    user.credits -= 5;
+    await user.save();
+
+    res.status(200).json({ hint: hintText, newCredits: user.credits });
+  } catch (error) {
+    console.error('Hint generation error:', error);
+    res.status(500).json({ message: 'Failed to generate hint', error: error.message });
   }
 };

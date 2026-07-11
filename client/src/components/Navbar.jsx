@@ -37,7 +37,11 @@ export default function Navbar() {
           </Link>
 
           {/* Right side */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <Link to="/pricing" className="text-sm font-semibold text-gray-600 hover:text-emerald-500 transition-colors" id="nav-pricing">
+              Pricing
+            </Link>
+            
             {user ? (
               <>
                 {/* Credits */}

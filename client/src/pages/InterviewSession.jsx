@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import API from '../utils/api';
 import { speak, stopSpeaking, createRecognition, isSpeechRecognitionSupported } from '../utils/speech';
 import { AuthContext } from '../App';
+import Editor from '@monaco-editor/react';
 
 export default function InterviewSession() {
   const { id } = useParams();
@@ -24,6 +25,10 @@ export default function InterviewSession() {
   const { user, updateCredits } = useContext(AuthContext);
   const [hint, setHint] = useState(null);
   const [fetchingHint, setFetchingHint] = useState(false);
+
+  const [showEditor, setShowEditor] = useState(false);
+  const [codeContent, setCodeContent] = useState('');
+  const [codeLanguage, setCodeLanguage] = useState('javascript');
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -175,6 +180,8 @@ export default function InterviewSession() {
         interviewId: id,
         questionIndex: currentIndex,
         answerText: finalAnswer,
+        codeContent: codeContent,
+        codeLanguage: codeLanguage,
       });
 
       setFeedback(data);
@@ -219,6 +226,8 @@ export default function InterviewSession() {
   const handleNext = async () => {
     if (currentIndex < interview.questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
+      setShowEditor(false);
+      setCodeContent('');
     } else {
       // Complete interview
       setCompleting(true);
@@ -380,10 +389,45 @@ export default function InterviewSession() {
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Type your answer here..."
               disabled={!!feedback}
-              className="w-full p-5 min-h-[200px] text-sm text-gray-700 bg-transparent resize-none focus:outline-none placeholder-gray-400"
+              className="w-full p-5 min-h-[120px] text-sm text-gray-700 bg-transparent resize-none focus:outline-none placeholder-gray-400"
               id="session-answer"
             />
           </div>
+
+          {/* Code Editor Area */}
+          {showEditor && (
+            <div className="rounded-2xl border-2 border-gray-200 bg-[#1e1e1e] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Code Editor</span>
+                <select 
+                  value={codeLanguage} 
+                  onChange={(e) => setCodeLanguage(e.target.value)}
+                  disabled={!!feedback}
+                  className="bg-gray-800 text-xs text-white px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                >
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="cpp">C++</option>
+                </select>
+              </div>
+              <div className="h-[250px]">
+                <Editor
+                  height="100%"
+                  language={codeLanguage}
+                  theme="vs-dark"
+                  value={codeContent}
+                  onChange={(value) => setCodeContent(value || '')}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    readOnly: !!feedback,
+                    scrollBeyondLastLine: false,
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Feedback */}
           {feedback && (
@@ -436,6 +480,18 @@ export default function InterviewSession() {
                 className="px-4 py-3 bg-amber-100 text-amber-700 rounded-xl font-semibold hover:bg-amber-200 transition-colors disabled:opacity-50"
               >
                 {fetchingHint ? 'Loading...' : 'Get a Hint (-5 Credits)'}
+              </motion.button>
+            )}
+
+            {/* Code Editor Toggle */}
+            {!feedback && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowEditor(!showEditor)}
+                className={`px-4 py-3 rounded-xl font-semibold transition-colors ${showEditor ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}
+              >
+                {showEditor ? 'Close Code Editor' : 'Open Code Editor 💻'}
               </motion.button>
             )}
 

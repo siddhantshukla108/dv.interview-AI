@@ -8,6 +8,8 @@ const questionSchema = new mongoose.Schema({
     required: true,
   },
   answerText: { type: String, default: '' },
+  codeContent: { type: String, default: '' },
+  codeLanguage: { type: String, default: 'javascript' },
   feedback: { type: String, default: '' },
   scores: {
     correctness: { type: Number, default: 0 },

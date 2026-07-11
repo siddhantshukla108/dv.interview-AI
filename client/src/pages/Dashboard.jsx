@@ -545,11 +545,22 @@ export default function Dashboard() {
                   {/* Answers & Feedback Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* User Answer */}
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Your Answer</p>
-                      <p className="text-xs text-gray-700 italic leading-relaxed">
-                        {q.answerText ? `"${q.answerText}"` : 'No answer provided. This question was skipped.'}
-                      </p>
+                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3">
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Your Verbal Answer</p>
+                        <p className="text-xs text-gray-700 italic leading-relaxed">
+                          {q.answerText ? `"${q.answerText}"` : 'No verbal answer provided.'}
+                        </p>
+                      </div>
+                      
+                      {q.codeContent && (
+                        <div>
+                          <p className="text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Written {q.codeLanguage}</p>
+                          <pre className="bg-[#1e1e1e] text-white p-3 rounded-lg text-xs overflow-x-auto font-mono whitespace-pre-wrap border border-gray-800">
+                            <code>{q.codeContent}</code>
+                          </pre>
+                        </div>
+                      )}
                     </div>
 
                     {/* AI Feedback */}

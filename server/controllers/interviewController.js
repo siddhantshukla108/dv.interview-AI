@@ -199,7 +199,7 @@ Return ONLY a valid JSON array with no extra text, in this exact format:
 // Submit answer for a single question
 export const submitAnswer = async (req, res) => {
   try {
-    const { interviewId, questionIndex, answerText } = req.body;
+    const { interviewId, questionIndex, answerText, codeContent, codeLanguage } = req.body;
 
     const interview = await Interview.findById(interviewId);
     if (!interview) {
@@ -216,9 +216,11 @@ export const submitAnswer = async (req, res) => {
 
     const question = interview.questions[questionIndex];
 
-    // If answer is empty/skipped, auto-score 0
-    if (!answerText || answerText.trim() === '') {
+    // If they skipped everything
+    if ((!answerText || answerText.trim() === '') && (!codeContent || codeContent.trim() === '')) {
       question.answerText = '';
+      question.codeContent = '';
+      question.codeLanguage = codeLanguage || 'javascript';
       question.feedback = 'No answer provided. This question was skipped.';
       question.scores = { correctness: 0, communication: 0, confidence: 0 };
       await interview.save();
@@ -228,17 +230,26 @@ export const submitAnswer = async (req, res) => {
       });
     }
 
-    // Score with LLM
-    const prompt = `You are evaluating an interview answer.
+    // Assign code properties to the question
+    question.codeContent = codeContent || '';
+    question.codeLanguage = codeLanguage || 'javascript';
+
+    // Build the AI evaluation prompt
+    let prompt = `You are evaluating an interview answer.
 
 Question: "${question.text}"
 Difficulty: ${question.difficulty}
 Interview Mode: ${interview.mode}
 Role: ${interview.role}
 
-Candidate's Answer: "${answerText}"
+Candidate's Spoken Answer: "${answerText || '[No verbal explanation provided]'}"
+`;
 
-Evaluate this answer and provide:
+    if (codeContent && codeContent.trim() !== '') {
+      prompt += `\nThe candidate also wrote the following ${question.codeLanguage} code:\n\`\`\`${question.codeLanguage}\n${codeContent}\n\`\`\`\n`;
+    }
+
+    prompt += `\nEvaluate this answer and provide:
 1. Brief, constructive feedback (2-3 sentences max)
 2. Three scores from 1 to 10:
    - correctness: how accurate and relevant the answer is
